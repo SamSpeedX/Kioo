@@ -3,20 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WebRTC Call with Toggle & End</title>
+  <title>WebRTC Room Call</title>
   <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
 </head>
 <body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-4 space-y-6">
-  <h1 class="text-2xl font-bold">📞 Static WebRTC Video Call</h1>
+  <h1 class="text-2xl font-bold">🔒 WebRTC Video Call via Room ID</h1>
 
+  <!-- Room Input -->
   <input id="roomInput" placeholder="Enter Room ID" class="text-black px-4 py-2 rounded" />
+
+  <!-- Buttons -->
   <div class="space-x-4">
     <button onclick="createRoom()" class="bg-green-600 px-4 py-2 rounded">📨 Create Room</button>
     <button onclick="joinRoom()" class="bg-blue-600 px-4 py-2 rounded">🔗 Join Room</button>
   </div>
 
-  <!-- Video section -->
+  <!-- Video Displays -->
   <div class="flex space-x-4">
     <div class="text-center">
       <p>You (Local)</p>
@@ -29,7 +32,7 @@
     </div>
   </div>
 
-  <!-- Control Buttons -->
+  <!-- Controls -->
   <div class="space-x-4 mt-4">
     <button id="micBtn" onclick="toggleMic()" class="bg-yellow-500 px-4 py-2 rounded font-bold">🎤 Mic: ON</button>
     <button id="camBtn" onclick="toggleCam()" class="bg-purple-500 px-4 py-2 rounded font-bold">📷 Cam: ON</button>
@@ -37,7 +40,7 @@
   </div>
 
   <script>
-    let localStream, currentCall;
+    let localStream, currentCall, peer;
     let audioEnabled = true;
     let videoEnabled = true;
 
@@ -47,37 +50,49 @@
     const camBtn = document.getElementById('camBtn');
     const localPlaceholder = document.getElementById('localPlaceholder');
 
-    const peer = new Peer({ host: 'peerjs.com', secure: true, port: 443 });
-
-    peer.on('open', id => console.log('PeerJS ID:', id));
-
+    // Start local media
     navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
       localStream = stream;
       localVideo.srcObject = stream;
     });
 
-    peer.on('call', call => {
-      call.answer(localStream);
-      call.on('stream', remoteStream => {
-        remoteVideo.srcObject = remoteStream;
-      });
-      currentCall = call;
-    });
-
+    // Create room (this user becomes the "host" with PeerJS ID = Room ID)
     function createRoom() {
       const roomId = document.getElementById('roomInput').value;
-      alert(`Share this Room ID: ${roomId}`);
+      if (!roomId) return alert("Enter a Room ID");
+
+      peer = new Peer(roomId, { host: 'peerjs.com', secure: true, port: 443 });
+
+      peer.on('open', id => {
+        alert(`Room created. Your ID: ${id}\nAsk your friend to join using the same Room ID.`);
+      });
+
+      peer.on('call', call => {
+        call.answer(localStream);
+        call.on('stream', remoteStream => {
+          remoteVideo.srcObject = remoteStream;
+        });
+        currentCall = call;
+      });
     }
 
+    // Join existing room
     function joinRoom() {
       const roomId = document.getElementById('roomInput').value;
-      const call = peer.call(roomId, localStream);
-      call.on('stream', remoteStream => {
-        remoteVideo.srcObject = remoteStream;
+      if (!roomId) return alert("Enter a Room ID");
+
+      peer = new Peer(undefined, { host: 'peerjs.com', secure: true, port: 443 });
+
+      peer.on('open', id => {
+        const call = peer.call(roomId, localStream);
+        call.on('stream', remoteStream => {
+          remoteVideo.srcObject = remoteStream;
+        });
+        currentCall = call;
       });
-      currentCall = call;
     }
 
+    // Toggle mic
     function toggleMic() {
       audioEnabled = !audioEnabled;
       localStream.getAudioTracks().forEach(track => track.enabled = audioEnabled);
@@ -87,6 +102,7 @@
         : "bg-gray-700 px-4 py-2 rounded font-bold";
     }
 
+    // Toggle camera
     function toggleCam() {
       videoEnabled = !videoEnabled;
       localStream.getVideoTracks().forEach(track => track.enabled = videoEnabled);
@@ -95,11 +111,11 @@
         ? "bg-purple-500 px-4 py-2 rounded font-bold"
         : "bg-gray-700 px-4 py-2 rounded font-bold";
 
-      // Show placeholder if camera is off
       localVideo.classList.toggle('hidden', !videoEnabled);
       localPlaceholder.classList.toggle('hidden', videoEnabled);
     }
 
+    // End call
     function endCall() {
       if (currentCall) currentCall.close();
       if (peer && !peer.destroyed) peer.destroy();
