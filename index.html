@@ -20,7 +20,133 @@
     let recordedChunks = [];
     let backgroundAudio;
 
-    // Use small base64 encoded silent audio as fallback and local audio for sandbox compatibility
     const musicOptions = {
-      nature: "data:audio/ogg;base64,T2dnUwACAAAAAAAAAABVDx0LAAAAANWnmAEAQAAAQAAABPZ2dTAAEAAAAAAAAVUXEAAABz/////wAAAA==",
-      p
+      nature: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_45c1604567.mp3?filename=nature.mp3",
+      piano: "https://cdn.pixabay.com/download/audio/2022/03/16/audio_962de73347.mp3?filename=piano.mp3",
+      water: "https://cdn.pixabay.com/download/audio/2021/09/20/audio_72fd5fa9b2.mp3?filename=water.mp3"
+    };
+
+    function nextAffirmation() {
+      currentAffirmation = (currentAffirmation + 1) % affirmations.length;
+      document.getElementById('affirmation').innerText = affirmations[currentAffirmation];
+    }
+
+    function speakAffirmation() {
+      const utterance = new SpeechSynthesisUtterance(document.getElementById('affirmation').innerText);
+      utterance.lang = 'sw-TZ';
+      speechSynthesis.speak(utterance);
+    }
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+        const video = document.getElementById('mirror');
+        video.srcObject = stream;
+        window.streamRef = stream;
+      } catch (err) {
+        console.error("Failed to access camera:", err);
+      }
+    }
+
+    function shareAffirmation() {
+      const text = document.getElementById('affirmation').innerText;
+      const shareData = {
+        text: `🌟 Mirror Affirmation: "${text}" #MirrorAffirmations`,
+        url: window.location.href
+      };
+      if (navigator.share) {
+        navigator.share(shareData).catch(console.error);
+      } else {
+        alert("Sharing is not supported on this device.");
+      }
+    }
+
+    function toggleTheme() {
+      const body = document.body;
+      isDark = !isDark;
+      body.classList.toggle('bg-gray-900', isDark);
+      body.classList.toggle('bg-white', !isDark);
+      body.classList.toggle('text-white', isDark);
+      body.classList.toggle('text-gray-900', !isDark);
+    }
+
+    function startRecording() {
+      recordedChunks = [];
+      const stream = window.streamRef;
+      if (!stream) return alert("Camera not initialized.");
+      mediaRecorder = new MediaRecorder(stream);
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'affirmation_recording.webm';
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+
+      mediaRecorder.start();
+      alert("Recording started! Speak your affirmation now.");
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        alert("Recording stopped. Video is being downloaded.");
+      }
+    }
+
+    function changeBackgroundMusic(value) {
+      if (backgroundAudio) {
+        backgroundAudio.pause();
+        backgroundAudio = null;
+      }
+      const url = musicOptions[value];
+      backgroundAudio = new Audio(url);
+      backgroundAudio.loop = true;
+      backgroundAudio.volume = 0.5;
+      backgroundAudio.play().catch(console.error);
+    }
+
+    window.onload = () => {
+      document.getElementById('affirmation').innerText = affirmations[0];
+      startCamera();
+      changeBackgroundMusic('nature'); // default music
+    }
+  </script>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen px-4 transition-colors duration-500">
+  <h1 class="text-3xl font-bold mb-4 text-center">🪞 Mirror Affirmations</h1>
+
+  <!-- Video Mirror -->
+  <video id="mirror" autoplay playsinline class="rounded-2xl border-4 border-white shadow-lg w-full max-w-md mb-6"></video>
+
+  <!-- Affirmation Text -->
+  <div id="affirmation" class="text-xl text-center font-medium mb-4 px-4">Loading affirmations...</div>
+
+  <!-- Buttons -->
+  <div class="flex flex-wrap justify-center gap-4 mb-4">
+    <button onclick="nextAffirmation()" class="bg-white text-gray-900 font-bold py-2 px-4 rounded-xl shadow">Next</button>
+    <button onclick="speakAffirmation()" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-xl shadow">Speak</button>
+    <button onclick="shareAffirmation()" class="bg-green-600 text-white font-bold py-2 px-4 rounded-xl shadow">Share</button>
+    <button onclick="toggleTheme()" class="bg-yellow-400 text-black font-bold py-2 px-4 rounded-xl shadow">Toggle Theme</button>
+    <button onclick="startRecording()" class="bg-red-600 text-white font-bold py-2 px-4 rounded-xl shadow">Start Rec</button>
+    <button onclick="stopRecording()" class="bg-gray-700 text-white font-bold py-2 px-4 rounded-xl shadow">Stop Rec</button>
+  </div>
+
+  <!-- Music Selector -->
+  <div class="mb-8">
+    <label for="music-select" class="block mb-2 text-center text-lg">🎵 Chagua Background Music:</label>
+    <select id="music-select" onchange="changeBackgroundMusic(this.value)" class="text-gray-900 px-4 py-2 rounded-xl">
+      <option value="nature">Nature</option>
+      <option value="piano">Piano Calm</option>
+      <option value="water">Rain / Water</option>
+    </select>
+  </div>
+</body>
+</html>
