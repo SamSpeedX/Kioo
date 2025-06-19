@@ -1,78 +1,74 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Simple Video Call</title>
-  <script defer src="script.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Static WebRTC Room</title>
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen space-y-6 p-4">
-  <h1 class="text-2xl font-bold">🧑‍💻 Simple Video Call</h1>
+  <h1 class="text-2xl font-bold">🔒 Static WebRTC Video Call</h1>
+
+  <input id="roomInput" placeholder="Enter Room ID" class="text-black px-4 py-2 rounded" />
+  <div class="space-x-4">
+    <button onclick="createRoom()" class="bg-green-600 px-4 py-2 rounded">📞 Create Room</button>
+    <button onclick="joinRoom()" class="bg-blue-600 px-4 py-2 rounded">🔗 Join Room</button>
+  </div>
 
   <div class="flex space-x-4">
     <div>
-      <p class="text-center">📷 Local Video</p>
-      <video id="localVideo" autoplay playsinline class="w-64 h-48 bg-black rounded-lg"></video>
+      <p class="text-center">📷 You</p>
+      <video id="localVideo" autoplay muted playsinline class="w-64 h-48 bg-black rounded-lg"></video>
     </div>
     <div>
-      <p class="text-center">🌍 Remote Video</p>
+      <p class="text-center">🧑 Remote</p>
       <video id="remoteVideo" autoplay playsinline class="w-64 h-48 bg-black rounded-lg"></video>
     </div>
   </div>
 
-  <div class="space-x-4">
-    <button id="startBtn" class="bg-green-600 px-6 py-2 rounded font-bold">Start Call</button>
-    <button id="hangupBtn" class="bg-red-600 px-6 py-2 rounded font-bold">Hang Up</button>
-  </div>
-
   <script>
+    let localStream, currentCall;
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
-    const startBtn = document.getElementById('startBtn');
-    const hangupBtn = document.getElementById('hangupBtn');
 
-    let localStream;
-    let pc1, pc2;
+    const peer = new Peer({
+      host: 'peerjs.com',
+      secure: true,
+      port: 443
+    });
 
-    const config = {
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-    };
+    peer.on('open', id => {
+      console.log('My peer ID is:', id);
+    });
 
-    async function startCall() {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then(stream => {
+        localStream = stream;
+        localVideo.srcObject = stream;
+      });
 
-      pc1 = new RTCPeerConnection(config);
-      pc2 = new RTCPeerConnection(config);
+    peer.on('call', call => {
+      call.answer(localStream);
+      call.on('stream', remoteStream => {
+        remoteVideo.srcObject = remoteStream;
+      });
+      currentCall = call;
+    });
 
-      // Exchange ICE candidates
-      pc1.onicecandidate = e => e.candidate && pc2.addIceCandidate(e.candidate);
-      pc2.onicecandidate = e => e.candidate && pc1.addIceCandidate(e.candidate);
-
-      // Receive stream
-      pc2.ontrack = e => remoteVideo.srcObject = e.streams[0];
-
-      // Send tracks from local stream
-      localStream.getTracks().forEach(track => pc1.addTrack(track, localStream));
-
-      const offer = await pc1.createOffer();
-      await pc1.setLocalDescription(offer);
-      await pc2.setRemoteDescription(offer);
-
-      const answer = await pc2.createAnswer();
-      await pc2.setLocalDescription(answer);
-      await pc1.setRemoteDescription(answer);
+    function createRoom() {
+      const roomId = document.getElementById('roomInput').value;
+      alert(`Give this Room ID to your friend: ${roomId}`);
     }
 
-    function hangUp() {
-      pc1?.close();
-      pc2?.close();
-      localVideo.srcObject = null;
-      remoteVideo.srcObject = null;
+    function joinRoom() {
+      const roomId = document.getElementById('roomInput').value;
+      const call = peer.call(roomId, localStream);
+      call.on('stream', remoteStream => {
+        remoteVideo.srcObject = remoteStream;
+      });
+      currentCall = call;
     }
-
-    startBtn.onclick = startCall;
-    hangupBtn.onclick = hangUp;
   </script>
 </body>
 </html>
